@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PULSAR.DSS | Orbital Decision Support System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{overflow:hidden;background:#030508;color:#d0d0d0;font-family:'Inter',sans-serif}
+        .fo{font-family:'Orbitron',monospace}
+        .fm{font-family:'JetBrains Mono',monospace}
+        #canvas-container{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1}
+        ::-webkit-scrollbar{width:4px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:#33ff6633;border-radius:2px}
+
+        .glass{background:rgba(6,10,18,0.82);backdrop-filter:blur(14px)}
+        .neonbox{
+            border:1px solid rgba(51,255,102,0.35);
+            box-shadow:0 0 12px rgba(51,255,102,0.08),inset 0 0 20px rgba(51,255,102,0.02);
+        }
+        .neonbox-data{
+            border:1px solid rgba(51,255,102,0.3);
+            box-shadow:0 0 15px rgba(51,255,102,0.06);
+        }
+        .nc{color:#33ccff;text-shadow:0 0 6px rgba(51,204,255,0.5)}
+        .nr{color:#ff3333;text-shadow:0 0 6px rgba(255,51,51,0.6)}
+        .ng{color:#33ff66;text-shadow:0 0 6px rgba(51,255,102,0.5)}
+
+        #sat-tooltip{position:fixed;z-index:200;pointer-events:none;opacity:0;background:rgba(4,8,16,0.92);border:1px solid #33ccff;color:#fff;padding:12px 14px;border-radius:8px;font-size:12px;max-width:240px;box-shadow:0 0 20px rgba(51,204,255,0.2);transition:opacity 0.15s;font-family:'JetBrains Mono',monospace}
+        #map-tooltip{position:fixed;z-index:200;pointer-events:none;opacity:0;background:rgba(4,8,16,0.92);border:1px solid #33ff66;color:#fff;padding:12px 14px;border-radius:8px;font-size:12px;max-width:260px;box-shadow:0 4px 20px rgba(0,0,0,0.5);transition:opacity 0.15s}
+        .city-dot{transition:all 0.2s;cursor:pointer}
+        .city-dot:hover{stroke:#fff;stroke-width:2.5}
+        .bline{stroke:rgba(51,255,102,0.06);stroke-width:1;stroke-dasharray:3 3}
+
+        .sat-btn{padding:8px 10px;border-radius:8px;font-size:11px;cursor:pointer;transition:all 0.3s;border:1px solid transparent;text-align:left;width:100%}
+        .sat-btn.active{background:rgba(51,204,255,0.12);border-color:#33ccff;box-shadow:0 0 12px rgba(51,204,255,0.15)}
+        .sat-btn:hover{background:rgba(51,204,255,0.08)}
+
+        .tog{width:28px;height:15px;background:#111;border-radius:8px;position:relative;cursor:pointer;transition:0.3s;border:1px solid #333}
+        .tog.on{background:#0c3a4a;border-color:#33ccff}
+        .tog::after{content:'';width:11px;height:11px;background:#666;border-radius:50%;position:absolute;top:1px;left:1px;transition:0.3s}
+        .tog.on::after{left:14px;background:#33ccff;box-shadow:0 0 5px #33ccff}
+
+        @keyframes live-pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+        .live-dot{width:8px;height:8px;border-radius:50%;background:#ff3333;animation:live-pulse 1.5s infinite;display:inline-block}
+        #collision-flash{position:fixed;inset:0;z-index:100;background:#fff;opacity:0;pointer-events:none;transition:opacity 0.1s}
+        .kpi-val{font-size:15px;font-weight:700;letter-spacing:0.5px}
+    </style>
+</head>
+<body>
+<div id="sat-tooltip"></div>
+<div id="map-tooltip"></div>
+<div id="collision-flash"></div>
+<div id="canvas-container"></div>
+
+<!-- ===== LEFT PANEL ===== -->
+<aside id="left-panel" class="fixed left-0 top-0 h-full w-[270px] z-20 glass neonbox flex flex-col" style="border-left:none;border-top:none;border-bottom:none">
+    <div class="p-5 border-b border-green-900/30">
+        <h1 class="fo text-xl font-black tracking-[0.15em]"><span class="nc">PULSAR</span><span class="text-gray-500">.DSS</span></h1>
+        <p class="text-[10px] text-gray-500 tracking-widest mt-1 fo">ORBITAL DECISION SUPPORT</p>
+    </div>
+
+    <!-- Orbital Operators -->
+    <div class="px-5 py-3 border-b border-green-900/30">
+        <div class="text-[10px] fo text-gray-500 tracking-wider mb-2">ORBITAL OPERATÖRLER</div>
+        <div class="space-y-2">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded bg-gray-800 flex items-center justify-center text-[9px] fo text-white font-bold">SX</div>
+                <div><div class="text-[12px] font-semibold text-white">SpaceX</div><div class="text-[10px] text-gray-500">Starlink • <span class="nc">4,519 uydu</span></div></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded bg-gray-800 flex items-center justify-center text-[9px] fo text-white font-bold">AE</div>
+                <div><div class="text-[12px] font-semibold text-white">Arianespace</div><div class="text-[10px] text-gray-500">GEO Fleet • <span class="nc">28 uydu</span></div></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded bg-gray-800 flex items-center justify-center text-[9px] fo text-white font-bold">IS</div>
+                <div><div class="text-[12px] font-semibold text-white">ISRO</div><div class="text-[10px] text-gray-500">GSAT Serisi • <span class="nc">14 uydu</span></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Satellite Selector -->
+    <div class="px-4 py-3 border-b border-green-900/30">
+        <div class="text-[10px] fo text-gray-500 tracking-wider mb-2">TÜRKSAT UYDU SEÇİMİ</div>
+        <div class="space-y-1.5" id="sat-selector">
+            <button onclick="selectSat(0)" id="sat-btn-0" class="sat-btn active">
+                <div class="fo text-[11px] nc font-semibold">TÜRKSAT-5A</div>
+                <div class="text-[10px] text-gray-500">GEO • 31.0°E • İrtifa: 35,786 km</div>
+            </button>
+            <button onclick="selectSat(1)" id="sat-btn-1" class="sat-btn">
+                <div class="fo text-[11px] text-gray-400 font-semibold">TÜRKSAT-5B</div>
+                <div class="text-[10px] text-gray-500">GEO • 42.0°E • İrtifa: 35,822 km</div>
+            </button>
+            <button onclick="selectSat(2)" id="sat-btn-2" class="sat-btn">
+                <div class="fo text-[11px] text-gray-400 font-semibold">TÜRKSAT-6A</div>
+                <div class="text-[10px] text-gray-500">GEO • 42.0°E • İrtifa: 35,756 km</div>
+            </button>
+        </div>
+        <button onclick="openAddSatPanel()" class="w-full mt-2 py-2 rounded-lg border border-dashed border-cyan-800/50 text-[11px] fo text-cyan-700 hover:bg-cyan-900/10 hover:border-cyan-500 transition">+ YENİ UYDU EKLE</button>
+    </div>
+
+    <!-- Layer Toggles -->
+    <div class="px-4 py-3 border-b border-green-900/30 flex-1 overflow-auto">
+        <div class="text-[10px] fo text-gray-500 tracking-wider mb-2">KATMANLAR</div>
+        <div class="space-y-2">
+            <div class="flex items-center justify-between"><span class="text-[12px] nr font-medium">Kessler Risk</span><div class="tog on" onclick="toggleLayer('danger',this)"></div></div>
+            <div class="flex items-center justify-between"><span class="text-[12px] ng font-medium">Güvenli Ağ</span><div class="tog on" onclick="toggleLayer('safe',this)"></div></div>
+            <div class="flex items-center justify-between"><span class="text-[12px] nc font-medium">Aktif Uydular</span><div class="tog on" onclick="toggleLayer('sats',this)"></div></div>
+            <div class="flex items-center justify-between"><span class="text-[12px] text-yellow-400 font-medium">Ölü Uydular</span><div class="tog on" onclick="toggleLayer('debris',this)"></div></div>
+            <div class="flex items-center justify-between"><span class="text-[12px] text-white font-medium">HD Dünya</span><div class="tog" onclick="toggleLayer('earth',this)"></div></div>
+        </div>
+    </div>
+
+    <!-- Tab Switch -->
+    <div class="p-4 border-t border-green-900/30">
+        <div class="flex gap-2">
+            <button onclick="switchTab('orbit')" id="btn-orbit" class="flex-1 py-2 bg-cyan-900/30 nc rounded-lg text-[11px] fo font-semibold border border-cyan-800/50">YÖRÜNGE</button>
+            <button onclick="switchTab('national')" id="btn-national" class="flex-1 py-2 text-gray-600 rounded-lg text-[11px] fo font-semibold border border-transparent hover:bg-gray-800/30">GÜVENLİK</button>
+        </div>
+    </div>
+</aside>
+
+<!-- ===== TOP DATA BAR ===== -->
+<div id="top-bar" class="fixed top-0 z-15 glass neonbox-data" style="left:270px;right:250px;border-top:none">
+    <div class="flex items-center justify-between px-5 py-3">
+        <div class="flex items-center gap-3">
+            <span id="sel-sat-name" class="fo text-sm nc font-bold tracking-wider">TÜRKSAT-5A</span>
+            <span class="text-gray-700">|</span>
+            <span id="sel-sat-status" class="text-[11px] ng fo font-semibold">● AKTİF</span>
+        </div>
+        <div class="flex gap-5 fm text-[11px]">
+            <div class="text-center"><div class="text-[9px] text-gray-500 mb-0.5">İRTİFA</div><div id="kpi-alt" class="kpi-val nc">35,786 km</div></div>
+            <div class="text-center"><div class="text-[9px] text-gray-500 mb-0.5">HIZ</div><div id="kpi-vel" class="kpi-val text-white">3.07 km/s</div></div>
+            <div class="text-center"><div class="text-[9px] text-gray-500 mb-0.5">EĞİM</div><div id="kpi-inc" class="kpi-val text-white">0.05°</div></div>
+            <div class="text-center"><div class="text-[9px] text-gray-500 mb-0.5">PERİYOT</div><div id="kpi-per" class="kpi-val text-white">1,436 dk</div></div>
+            <div class="text-center"><div class="text-[9px] text-gray-500 mb-0.5">BOYLAM</div><div id="kpi-lon" class="kpi-val text-white">31.0°E</div></div>
+            <div class="text-center"><div class="text-[9px] text-gray-500 mb-0.5">Pc</div><div id="kpi-pc" class="kpi-val nr">2.4e-04</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== RIGHT TELEMETRY PANEL ===== -->
+<aside id="right-panel" class="fixed right-0 top-0 h-full w-[250px] z-20 glass neonbox flex flex-col" style="border-right:none;border-top:none;border-bottom:none">
+    <div class="p-4 border-b border-green-900/30 flex items-center justify-between">
+        <span class="fo text-[11px] text-gray-300 tracking-wider font-semibold">TELEMETRY LOG</span>
+        <span class="flex items-center gap-2"><span class="live-dot"></span><span class="text-[10px] nr fo font-bold tracking-wider">LIVE</span></span>
+    </div>
+    <div id="telemetry-log" class="flex-1 overflow-y-auto p-3 space-y-1.5 fm text-[11px]"></div>
+</aside>
+
+<!-- ===== ADD SATELLITE MODAL ===== -->
+<div id="add-sat-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center" style="background:rgba(0,0,0,0.6)">
+    <div class="glass neonbox rounded-xl p-6 w-[380px]">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="fo text-base nc font-bold">YENİ UYDU EKLE</h3>
+            <button onclick="closeAddSatPanel()" class="text-gray-500 hover:text-white text-xl">✕</button>
+        </div>
+        <div class="space-y-3">
+            <div><label class="text-[11px] text-gray-400 block mb-1">Uydu Adı</label><input id="new-sat-name" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white fo" placeholder="TÜRKSAT-7A"></div>
+            <div class="flex gap-3">
+                <div class="flex-1"><label class="text-[11px] text-gray-400 block mb-1">Yörünge (km)</label><input id="new-sat-alt" type="number" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white fm" value="35786"></div>
+                <div class="flex-1"><label class="text-[11px] text-gray-400 block mb-1">Boylam (°E)</label><input id="new-sat-lon" type="number" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white fm" value="50.0"></div>
+            </div>
+            <button onclick="addNewSatellite()" class="w-full py-2.5 bg-cyan-900/30 nc border border-cyan-700/50 rounded-lg fo text-[12px] hover:bg-cyan-800/40 transition font-semibold">FIRLATMA ONAYLA</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== NATIONAL SECURITY PANEL ===== -->
+<div id="national-panel" class="fixed hidden z-25 bg-[#030508] flex flex-col" style="left:270px;right:250px;top:0;bottom:0">
+    <div class="flex justify-between items-center px-5 pt-4 pb-2 shrink-0">
+        <div>
+            <h2 class="fo text-sm nc tracking-wider font-bold">TÜRKİYE FIRLATMA GÜVENLİK HARİTASI</h2>
+            <p class="text-[11px] text-gray-500 mt-0.5">81 İl • Stratosferik Analiz • Canlı</p>
+        </div>
+        <div class="flex gap-4 text-[11px] fm items-center font-medium">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e]"></span>Temiz</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-500 shadow-[0_0_6px_#eab308]"></span>Hafif</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-orange-500 shadow-[0_0_6px_#f97316]"></span>Kesişim</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-600 shadow-[0_0_6px_#dc2626]"></span>Kritik</span>
+        </div>
+    </div>
+    <div class="flex-1 flex items-center justify-center p-3 overflow-hidden" id="map-container">
+        <svg viewBox="0 0 1000 450" preserveAspectRatio="xMidYMid meet" class="w-full h-full max-w-full max-h-full" id="turkey-svg">
+            <path id="turkey-border" fill="#080c14" stroke="rgba(51,255,102,0.15)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+            <g id="network-lines"></g>
+            <g id="provinces-group"></g>
+        </svg>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
